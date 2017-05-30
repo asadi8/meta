@@ -41,7 +41,7 @@ def Leaky_ReLU(x, leak=0.3, name="lrelu"):
          f1 = 0.5 * (1 + leak)
          f2 = 0.5 * (1 - leak)
          return f1 * x + f2 * abs(x)
-         
+
 def interact_one_episode(env,sess,params,myAgent):
     s,t,done,G=env.reset(),0,False,0
     states,actions,rewards=[],[],[]
@@ -61,3 +61,13 @@ def interact_one_episode(env,sess,params,myAgent):
     episode_info['return']=G
     return episode_info
     
+def print_performance(params,episode_number,return_per_episode):
+    if episode_number % params['log_freq'] == 0 and episode_number>0:#print how well the agent is doing
+        print("episode "+str(episode_number))
+        print("return mean: ",str(numpy.mean(return_per_episode[-params['log_freq']:])))
+        print("retrun std: ",str(numpy.std(return_per_episode[-params['log_freq']:])))
+        print("retrun max: ",str(numpy.max(return_per_episode[-params['log_freq']:])))
+        print("retrun min: ",str(numpy.min(return_per_episode[-params['log_freq']:])))
+        #print(return_per_episode[params['log_freq']:])
+        #print(params['log_freq'])
+        sys.stdout.flush() 

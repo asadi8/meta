@@ -3,7 +3,7 @@ import numpy as np
 import gym
 import sys
 import utils
-import REINFORCE_agent
+import REINFORCE_agent 
 
 def train(params):
     tf.reset_default_graph() #Clear the Tensorflow graph.
@@ -33,8 +33,5 @@ def train(params):
             if episode_number % params['policy_update_freq'] == 0 and episode_number > 0:#update policy network
                 myAgent.update(params,batch_info)
                 batch_info=[]#clear data holder
-
-            if episode_number % params['log_freq'] == 0 and episode_number>0:#print how well the agent is doing
-                print("episode "+str(episode_number)+
-                    " - return: ",str(np.mean(return_per_episode[params['log_freq']:])))
-                sys.stdout.flush()
+            utils.print_performance(params,episode_number,return_per_episode)#print how well the policy is doing and
+            #go to next episode  
