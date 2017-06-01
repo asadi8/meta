@@ -8,60 +8,60 @@ import tensorflow as tf
 import collections
 import matplotlib.pyplot as plt
 
-class meta_policy():
+class meta:
     
-    def __init__(self, learning_rate=0.01, scope="policy_estimator"):
-        with tf.variable_scope(scope):
-            self.state = tf.placeholder(tf.float32, [None,1,2], "state")
-            self.action = tf.placeholder(dtype=tf.float32, name="action")
-            self.target = tf.placeholder(dtype=tf.float32, name="target")
-
-            # This is just linear classifier
-            W=tf.Variable(utils.xavier_init([2, 1]))
-            b=tf.Variable(tf.zeros(shape=[1]))
-            self.mu =tf.matmul(self.state,W) + b
-            self.mu = tf.squeeze(self.mu)
-            self.normal_dist = tf.contrib.distributions.Normal(self.mu, 0.2)
-            self.action = self.normal_dist._sample_n(1)
-            self.action=tf.stop_gradient(self.action)
-
-            # Loss and train op
-            self.loss = -self.normal_dist.log_prob(self.action) * self.target
-            # Add cross entropy cost to encourage exploration
-            #self.loss -= 1e-1 * self.normal_dist.entropy()
-            
-            self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-            self.train_op = self.optimizer.minimize(self.loss)
+    def __init__(self,params):
+        learning_rate=params['meta_learning_rate']
+        observation_size=params['policy_num_parameters']
+        normal_variance=params['meta_normal_variance']
+        self.state = tf.placeholder(tf.float32, [1,observation_size], "state")
+        self.action = tf.placeholder(dtype=tf.float32, name="action")
+        self.target = tf.placeholder(dtype=tf.float32, name="target")
+        self.W=tf.Variable(0.4*tf.ones([1]))
+        self.mu =self.state*self.W
+        self.mu = tf.squeeze(self.mu)
+        self.normal_dist = tf.contrib.distributions.Normal(self.mu, normal_variance)
+        self.action = self.normal_dist._sample_n(1)
+        self.action=tf.stop_gradient(self.action)
+        self.loss = -self.normal_dist.log_prob(self.action) * self.target
+        self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+        self.train_op = self.optimizer.minimize(self.loss)
     
     def predict(self, state, sess):
-        return sess.run(self.action, { self.state: [state] })
+        return sess.run(self.action, { self.state: state })
 
     def update(self, state, target, action, sess):
-        feed_dict = { self.state: [state], self.target: target, self.action: action  }
+        print(target)
+        print("W before update:",sess.run(self.W))
+        feed_dict = { self.state: state, self.target: target, self.action: action  }
         _, loss = sess.run([self.train_op, self.loss], feed_dict)
-        return loss
+        print("W after update:",sess.run(self.W))
+        return sess.run(self.W)
 
-tf.reset_default_graph()
+'''
+def train_once():
+    tf.reset_default_graph()
+    observation_size=200
+    meta_policy = meta(learning_rate=0.0001,observation_size=observation_size,normal_variance=0.02)
+    li=[]
 
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for t in range(1000):
+            state=np.random.random((1,observation_size))
+            mu=sess.run(meta_policy.mu,feed_dict={meta_policy.state:state})
+            action=meta_policy.predict(state,sess)
+            G=-np.linalg.norm(3*state-action)
+            meta_policy.update(state,G,action,sess)   
+            li.append(sess.run(meta_policy.W))
+    print("obsreved return:",G)
+    return li
 
-env = gym.envs.make("MountainCarContinuous-v0")
-env.observation_space.sample()
-meta_policy = meta_policy(learning_rate=0.005)
-mus=[]
-
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-    state=env.reset()
-    for t in range(1000):
-        print(np.array(state).shape)
-        mu=sess.run(meta_policy.mu,feed_dict={meta_policy.state:[state]})
-        print(mu)
-        action=meta_policy.predict(state,sess)
-        #print("action:",action)
-        G=-np.square(action-5)
-        #print("obsreved return:",G)
-        meta_policy.update(state,G,action,sess)   
-        mus.append(mu)
-    plt.plot(mus)
-    plt.show()
-plt.close()
+m=[]
+for i in range(20):
+    li=train_once()
+    #plt.plot(li)
+    m.append(li)
+plt.plot(np.mean(m,axis=0))
+plt.show()
+'''

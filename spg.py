@@ -3,7 +3,9 @@ import numpy as np
 import gym
 import sys
 import utils
-import REINFORCE_agent 
+import REINFORCE_agent
+import gaussian_2d
+import matplotlib.pyplot as plt
 
 def train(params):
     tf.reset_default_graph() #Clear the Tensorflow graph.
@@ -13,6 +15,9 @@ def train(params):
 
     if params['PG_algorithm']=='REINFORCE':#choose the learning algorithm
         myAgent = REINFORCE_agent.agent(params)
+        params['policy_num_parameters']=myAgent.num_policy_parameters()
+    if params['meta_algorithm']=='REINFORCE':
+        meta_learner=gaussian_2d.meta(params)
 
     init = tf.initialize_all_variables()#launch tf variables
 
@@ -21,8 +26,10 @@ def train(params):
         params['tf_session']=sess
         sess.run(init)
         return_per_episode = []#this is solely for log purpose
+        batch_mean_return =[]
         myAgent.initialize_for_learning(params)#initialize the learning algorithm
         batch_info=[]#data to learn from goes here
+        Ws=[]
 
         for episode_number in range(params['num_training_episodes']):
 
@@ -31,7 +38,18 @@ def train(params):
             return_per_episode.append(episode_info['return'])
 
             if episode_number % params['policy_update_freq'] == 0 and episode_number > 0:#update policy network
-                myAgent.update(params,batch_info)
+                meta_state,meta_action=myAgent.update(params,batch_info,meta_learner)
+                batch_mean_return.append(np.mean(return_per_episode[-params['policy_update_freq']:]))
+                if len(batch_mean_return)==1:
+                    meta_baseline=0
+                else:
+                    meta_baseline=batch_mean_return[-2]
+                meta_return=batch_mean_return[-1]-meta_baseline
+                W=meta_learner.update(meta_state, meta_return, meta_action, sess)
+                Ws.append(W)
+                #sys.exit(1)
+
                 batch_info=[]#clear data holder
             utils.print_performance(params,episode_number,return_per_episode)#print how well the policy is doing and
-            #go to next episode  
+            #go to next episode
+    return Ws,return_per_episode

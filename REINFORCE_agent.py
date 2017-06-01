@@ -7,6 +7,8 @@ class agent():
     gradBuffer=[]
     weights=[]
     def __init__(self, params):
+        self.weights=[]
+        self.gradBuffer=[]
         #These lines established the feed-forward part of the network. The agent takes a state and produces an action.
         self.state_in= tf.placeholder(shape=[None,params['observation_size']],dtype=tf.float32)
         hidden=self.state_in
@@ -38,7 +40,7 @@ class agent():
             self.gradient_holders.append(placeholder)
         self.gradients = tf.gradients(self.loss,self.weights)
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=params['policy_learning_rate'])
-        optimizer = tf.train.AdamOptimizer(learning_rate=params['policy_learning_rate'])
+        #optimizer = tf.train.AdamOptimizer(learning_rate=params['policy_learning_rate'])
         self.update_batch = optimizer.apply_gradients(zip(self.gradient_holders,self.weights))
 
     def action_selection(self,s,sess):
@@ -52,8 +54,9 @@ class agent():
         for ix,grad in enumerate(self.gradBuffer):
             self.gradBuffer[ix] = grad * 0
 
-    def update(self,params,batch_info):
+    def update(self,params,batch_info,meta_learner):
         #compute episode-based gradient estimator
+        #print(batch_info)
         sess=params['tf_session']
         for episode_number,episode_info in enumerate(batch_info):
             returns=utils.rewardToReturn(episode_info['rewards'],params['discount_rate'])
@@ -62,10 +65,59 @@ class agent():
             grads = sess.run(self.gradients, feed_dict=feed_dict)
             for idx,grad in enumerate(grads):
                 self.gradBuffer[idx] += grad
-
+        
+        #*****
+        flat=self.flatten_grad(self.gradBuffer)
+        #print(flat)
+        flat_meta=meta_learner.predict(flat,sess)
+        #print(sess.run(meta_learner.mu,feed_dict={meta_learner.state:flat}))
+        #print(flat_meta)
+        #print(flat_meta[0,0]/flat[0,0])
+        #print(flat_meta[0,1]/flat[0,1])
+        
+        #print(flat.shape)
+        #sys.exit(1)
+        #use the meta learner here
+        #then pass the output of meta learner to the function bellow as first argument
+        self.augmented_grads_buffer=self.listicize_grad(flat_meta,self.gradBuffer)
+        #then update the policy using augmented grad!
         #now update the policy
-        feed_dict = dict(zip(self.gradient_holders, self.gradBuffer))
+        #*****
+        feed_dict = dict(zip(self.gradient_holders, self.augmented_grads_buffer))
         _ = sess.run(self.update_batch, feed_dict=feed_dict)
         #clear gradient holder
         for ix,grad in enumerate(self.gradBuffer):
             self.gradBuffer[ix] = grad * 0
+        #sys.exit(1)
+        return flat,flat_meta
+    def flatten_grad(self,grads):
+        f=None
+        for g in grads:
+            if f==None:
+                f=g.flatten()
+            else:
+                f=np.concatenate((f,g.flatten()))
+        return f.reshape(1,f.shape[0])
+
+    def listicize_grad(self,flat,original_grad):
+        out=[]
+        offset=0
+        for o in original_grad:
+            if len(o.shape)==2:
+                temp=flat[0,offset:(offset+o.size)]
+                out.append(temp.reshape((o.shape[0],o.shape[1])))
+                offset=offset+o.size
+            elif len(o.shape)==1:
+                temp=flat[0,offset:(offset+o.size)]
+                out.append(temp.reshape((o.shape[0],)))
+                offset=offset+o.size
+            else:
+                print("weights are not 1D or 2D ... exit")
+                sys.exit(1)
+        return out
+    def num_policy_parameters(self):
+        out=0
+        for w in self.weights:
+            print(int(np.prod(w.get_shape())))
+            out=out+int(np.prod(w.get_shape()))
+        return out
