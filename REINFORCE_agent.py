@@ -118,6 +118,5 @@ class agent():
     def num_policy_parameters(self):
         out=0
         for w in self.weights:
-            print(int(np.prod(w.get_shape())))
             out=out+int(np.prod(w.get_shape()))
         return out

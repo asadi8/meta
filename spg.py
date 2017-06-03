@@ -6,7 +6,7 @@ import utils
 import REINFORCE_agent
 import gaussian_2d
 import matplotlib.pyplot as plt
-
+Rmax=200
 def train(params):
     tf.reset_default_graph() #Clear the Tensorflow graph.
     env = gym.make(params['environment_name'])#create an environment
@@ -38,18 +38,25 @@ def train(params):
             return_per_episode.append(episode_info['return'])
 
             if episode_number % params['policy_update_freq'] == 0 and episode_number > 0:#update policy network
-                meta_state,meta_action=myAgent.update(params,batch_info,meta_learner)
                 batch_mean_return.append(np.mean(return_per_episode[-params['policy_update_freq']:]))
-                if len(batch_mean_return)==1:
-                    meta_baseline=0
-                else:
-                    meta_baseline=batch_mean_return[-2]
-                meta_return=batch_mean_return[-1]-meta_baseline
-                W=meta_learner.update(meta_state, meta_return, meta_action, sess)
-                Ws.append(W)
+                if len(batch_mean_return)>1:
+                    #meta_return=(batch_mean_return[-1]-batch_mean_return[-2])/Rmax
+                    meta_return=-np.linalg.norm(meta_state-meta_action)
+                    #print("batch mean return is the following",batch_mean_return)
+                    print("W is")
+                    print("meta_return is the following",meta_return)
+                    #print(meta_state-meta_action)
+                    #sys.exit(1)
+                    W=meta_learner.update(meta_state, meta_return, meta_action, sess)
+                    #sys.exit(1)
+
+                meta_state,meta_action=myAgent.update(params,batch_info,meta_learner)
+                
+                
+                #Ws.append(W)
                 #sys.exit(1)
 
                 batch_info=[]#clear data holder
-            utils.print_performance(params,episode_number,return_per_episode)#print how well the policy is doing and
+            #utils.print_performance(params,episode_number,return_per_episode)#print how well the policy is doing and
             #go to next episode
     return Ws,return_per_episode

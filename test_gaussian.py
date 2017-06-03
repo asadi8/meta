@@ -21,7 +21,17 @@ class meta_policy():
             b=tf.Variable(tf.zeros(shape=[1]))
             self.mu =tf.matmul(self.state,W) + b
             self.mu = tf.squeeze(self.mu)
-            self.normal_dist = tf.contrib.distributions.Normal(self.mu, 0.2)
+            
+            self.sigma = tf.contrib.layers.fully_connected(
+                inputs=tf.expand_dims(self.state, 0),
+                num_outputs=1,
+                activation_fn=None,
+                weights_initializer=tf.zeros_initializer)
+            
+            self.sigma = tf.squeeze(self.sigma)
+            self.sigma = tf.nn.softplus(self.sigma) + 1e-5
+
+            self.normal_dist = tf.contrib.distributions.Normal(self.mu, self.sigma)
             self.action = self.normal_dist._sample_n(1)
             self.action=tf.stop_gradient(self.action)
 
